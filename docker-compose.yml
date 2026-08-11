@@ -1,0 +1,55 @@
+services:
+  fitness-mcp:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LYFTA_API_KEY: ${LYFTA_API_KEY:-}
+      LYFTA_BASE_URL: ${LYFTA_BASE_URL:-https://my.lyfta.app}
+      YAZIO_USERNAME: ${YAZIO_USERNAME:-}
+      YAZIO_PASSWORD: ${YAZIO_PASSWORD:-}
+      MCP_AUTH_MODE: ${MCP_AUTH_MODE:-oauth}
+      MCP_ACCESS_TOKEN: ${MCP_ACCESS_TOKEN:-}
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://fitness.alexisdechiara.fr}
+      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://fitness.alexisdechiara.fr/mcp}
+      OAUTH_STORE_PATH: ${OAUTH_STORE_PATH:-/data/oauth-store.json}
+      OAUTH_DCR_ENABLED: ${OAUTH_DCR_ENABLED:-true}
+      OAUTH_ALLOWED_REDIRECT_URIS: ${OAUTH_ALLOWED_REDIRECT_URIS:-https://claude.ai/api/mcp/auth_callback}
+      OAUTH_ACCESS_TOKEN_TTL_SECONDS: ${OAUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
+      OAUTH_REFRESH_TOKEN_TTL_SECONDS: ${OAUTH_REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      OAUTH_AUTH_CODE_TTL_SECONDS: ${OAUTH_AUTH_CODE_TTL_SECONDS:-90}
+      OAUTH_SESSION_TTL_SECONDS: ${OAUTH_SESSION_TTL_SECONDS:-28800}
+      OAUTH_MAX_DYNAMIC_CLIENTS: ${OAUTH_MAX_DYNAMIC_CLIENTS:-100}
+      FITNESS_ADMIN_USERNAME: ${FITNESS_ADMIN_USERNAME:-}
+      FITNESS_ADMIN_PASSWORD: ${FITNESS_ADMIN_PASSWORD:-}
+      CLAUDE_CLIENT_ID: ${CLAUDE_CLIENT_ID:-}
+      CLAUDE_CLIENT_SECRET: ${CLAUDE_CLIENT_SECRET:-}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-fitness.alexisdechiara.fr,localhost,127.0.0.1}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS:-15000}
+      UPSTREAM_RETRIES: ${UPSTREAM_RETRIES:-2}
+      UPSTREAM_CONCURRENCY: ${UPSTREAM_CONCURRENCY:-4}
+      FITNESS_MAX_RANGE_DAYS: ${FITNESS_MAX_RANGE_DAYS:-366}
+      FITNESS_MAX_WORKOUTS: ${FITNESS_MAX_WORKOUTS:-1000}
+    volumes:
+      - fitness-mcp-oauth:/data
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  fitness-mcp-oauth:

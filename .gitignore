@@ -1,0 +1,30 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.research/
+.env
+.env.*
+!.env.example
+
+# Private keys and local credential stores
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+oauth-store*.json
+
+# Local databases, dumps, and backups
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.db
+*.dump
+*.bak
+*.backup
+*.log
+.DS_Store
+.idea/
+.vscode/
