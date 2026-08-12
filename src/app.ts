@@ -147,6 +147,19 @@ export function createApp(dependencies: RuntimeDependencies): Express {
     app.use(dependencies.oauth.router());
   }
 
+  app.get("/", (_request, response) => {
+    const services = configuredServices(dependencies.config);
+    response.json({
+      name: "fitness-mcp",
+      status: "ok",
+      endpoint: "/mcp",
+      services: {
+        lyfta: services.lyfta ? "configured" : "not_configured",
+        yazio: services.yazio ? "configured" : "not_configured",
+      },
+    });
+  });
+
   app.get("/healthz", (_request, response) => {
     const services = configuredServices(dependencies.config);
     response.json({

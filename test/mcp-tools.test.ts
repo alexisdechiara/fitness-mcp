@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { createMcpServer } from "../src/mcp-server.js";
 import { SecretRedactor } from "../src/security/redaction.js";
 import type { FitnessToolService } from "../src/tools/fitness-tools.js";
+import type { LyftaToolClient } from "../src/tools/lyfta-tools.js";
+import type { YazioToolClient } from "../src/tools/yazio-tools.js";
 
 const EXPECTED_TOOLS = [
   "fitness_daily_summary",
@@ -38,6 +40,37 @@ function fitnessStub(): FitnessToolService {
     trainingNutritionSummary: empty,
     muscleVolume: empty,
     exerciseProgress: empty,
+  };
+}
+
+function lyftaStub(): LyftaToolClient {
+  const empty = async (): Promise<unknown> => ({});
+  return {
+    listWorkouts: async () => ({ workouts: [{ id: "workout-1" }] }),
+    listWorkoutSummaries: empty,
+    listExercises: empty,
+    searchExerciseLibrary: empty,
+    getExerciseProgress: empty,
+    listClients: empty,
+  };
+}
+
+function failingYazioStub(): YazioToolClient {
+  const unavailable = async (): Promise<never> => {
+    throw new Error("Yazio upstream unavailable");
+  };
+  return {
+    getConsumedItems: unavailable,
+    getDailySummary: unavailable,
+    getWeight: unavailable,
+    getExercises: unavailable,
+    getWaterIntake: unavailable,
+    getGoals: unavailable,
+    getSettings: unavailable,
+    getDietaryPreferences: unavailable,
+    getSuggestedProducts: unavailable,
+    searchProducts: unavailable,
+    getProduct: unavailable,
   };
 }
 
@@ -77,6 +110,40 @@ describe("MCP tool catalogue", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toEqual({});
       expect(result.content).toEqual([{ type: "text", text: "{}" }]);
+    } finally {
+      await Promise.allSettled([client.close(), server.close()]);
+    }
+  });
+
+  it("keeps Lyfta and fitness tools usable when Yazio fails", async () => {
+    const server = createMcpServer({
+      lyfta: lyftaStub(),
+      yazio: failingYazioStub(),
+      fitness: fitnessStub(),
+      redactor: new SecretRedactor([]),
+    });
+    const client = new Client({ name: "fitness-mcp-degraded-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      const yazioResult = await client.callTool({ name: "yazio_get_settings", arguments: {} });
+      expect(yazioResult.isError).toBe(true);
+      expect(yazioResult.content).toEqual([
+        expect.objectContaining({ text: expect.stringContaining("Yazio upstream unavailable") }),
+      ]);
+
+      const lyftaResult = await client.callTool({ name: "lyfta_list_workouts", arguments: {} });
+      expect(lyftaResult.isError).not.toBe(true);
+      expect(lyftaResult.structuredContent).toEqual({ workouts: [{ id: "workout-1" }] });
+
+      const fitnessResult = await client.callTool({
+        name: "fitness_daily_summary",
+        arguments: { date: "2026-08-12" },
+      });
+      expect(fitnessResult.isError).not.toBe(true);
     } finally {
       await Promise.allSettled([client.close(), server.close()]);
     }

@@ -62,13 +62,6 @@ const EnvironmentSchema = z
     FITNESS_MAX_WORKOUTS: integerFromEnvironment(1_000, 100, 10_000),
   })
   .superRefine((env, context) => {
-    if ((env.YAZIO_USERNAME && !env.YAZIO_PASSWORD) || (!env.YAZIO_USERNAME && env.YAZIO_PASSWORD)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "YAZIO_USERNAME and YAZIO_PASSWORD must be configured together.",
-      });
-    }
-
     if (env.MCP_AUTH_MODE === "bearer" && (!env.MCP_ACCESS_TOKEN || env.MCP_ACCESS_TOKEN.length < 32)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -258,14 +251,18 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   const env = parsed.data;
   const oauthIssuerUrl = new URL(env.OAUTH_ISSUER_URL).href.replace(/\/$/u, "");
   const oauthResourceUrl = new URL(env.OAUTH_RESOURCE_URL ?? "/mcp", oauthIssuerUrl).href;
+  // Upstreams are optional. In particular, accounts created through Google do
+  // not necessarily have a Yazio password: an incomplete pair therefore
+  // disables Yazio instead of preventing the independent MCP/OAuth service and
+  // the Lyfta tools from starting.
+  const yazioConfigured = Boolean(env.YAZIO_USERNAME && env.YAZIO_PASSWORD);
   return {
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
     logLevel: env.LOG_LEVEL,
     ...(env.LYFTA_API_KEY ? { lyftaApiKey: env.LYFTA_API_KEY } : {}),
     lyftaBaseUrl: env.LYFTA_BASE_URL,
-    ...(env.YAZIO_USERNAME ? { yazioUsername: env.YAZIO_USERNAME } : {}),
-    ...(env.YAZIO_PASSWORD ? { yazioPassword: env.YAZIO_PASSWORD } : {}),
+    ...(yazioConfigured ? { yazioUsername: env.YAZIO_USERNAME, yazioPassword: env.YAZIO_PASSWORD } : {}),
     mcpAuthMode: env.MCP_AUTH_MODE,
     ...(env.MCP_ACCESS_TOKEN ? { mcpAccessToken: env.MCP_ACCESS_TOKEN } : {}),
     allowedHosts: csv(env.MCP_ALLOWED_HOSTS),

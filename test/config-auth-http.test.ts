@@ -66,12 +66,14 @@ afterEach(async () => {
 });
 
 describe("configuration", () => {
-  it("rejects partial Yazio credentials", () => {
-    expect(() =>
-      testConfig({
-        YAZIO_USERNAME: "person@example.test",
-      }),
-    ).toThrow(/YAZIO_USERNAME and YAZIO_PASSWORD/u);
+  it("disables Yazio instead of blocking startup when only one credential is present", () => {
+    const usernameOnly = testConfig({ YAZIO_USERNAME: "person@example.test" });
+    const passwordOnly = testConfig({ YAZIO_PASSWORD: "yazio-test-secret" });
+
+    expect(usernameOnly).not.toHaveProperty("yazioUsername");
+    expect(usernameOnly).not.toHaveProperty("yazioPassword");
+    expect(passwordOnly).not.toHaveProperty("yazioUsername");
+    expect(passwordOnly).not.toHaveProperty("yazioPassword");
   });
 
   it("requires a strong access token in bearer mode", () => {
@@ -131,6 +133,20 @@ describe("configuration", () => {
 });
 
 describe("HTTP application", () => {
+  it("serves a public root status without requiring either upstream", async () => {
+    const { baseUrl } = await serve(testConfig());
+
+    const response = await fetch(baseUrl);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      name: "fitness-mcp",
+      status: "ok",
+      endpoint: "/mcp",
+      services: { lyfta: "not_configured", yazio: "not_configured" },
+    });
+  });
+
   it("starts in health-only mode when neither upstream is configured", async () => {
     const { baseUrl } = await serve(testConfig());
 

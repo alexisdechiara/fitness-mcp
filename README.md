@@ -71,8 +71,8 @@ Copier `.env.example` vers `.env` pour le développement, sans jamais commiter c
 | --- | --- | --- | --- |
 | `LYFTA_API_KEY` | recommandée | — | clé Bearer Lyfta côté serveur |
 | `LYFTA_BASE_URL` | non | `https://my.lyfta.app` | origine HTTPS de l'API Lyfta |
-| `YAZIO_USERNAME` | avec le password | — | identifiant Yazio côté serveur |
-| `YAZIO_PASSWORD` | avec le username | — | mot de passe Yazio côté serveur |
+| `YAZIO_USERNAME` | non | — | identifiant Yazio côté serveur, utilisé seulement avec `YAZIO_PASSWORD` |
+| `YAZIO_PASSWORD` | non | — | mot de passe Yazio côté serveur, utilisé seulement avec `YAZIO_USERNAME` |
 | `MCP_AUTH_MODE` | oui en prod | `oauth` | `oauth` recommandé, `bearer`, ou `none` hors production seulement |
 | `MCP_ACCESS_TOKEN` | en mode bearer | — | secret fixe historique de `/mcp`, 32 caractères minimum |
 | `PORT` | non | `3000` | port HTTP interne |
@@ -129,6 +129,12 @@ PowerShell :
 Une intégration peut être laissée non configurée : ses outils renverront une erreur claire et
 les agrégations continueront avec les données disponibles. Le healthcheck ne tente jamais de
 se connecter avec les credentials.
+
+Les comptes Yazio créés avec Google n'ont pas toujours de mot de passe compatible avec l'API non
+officielle utilisée ici. Dans ce cas, laisser `YAZIO_USERNAME` et `YAZIO_PASSWORD` vides. Une paire
+Yazio incomplète est également ignorée : elle ne bloque ni le démarrage, ni OAuth, ni les outils
+Lyfta. De la même manière, une panne temporaire de Yazio ou Lyfta est isolée à l'appel concerné ;
+le serveur MCP et les outils de l'autre service restent accessibles.
 
 ## Développement
 
@@ -205,11 +211,15 @@ et révocations seront perdus. Le store fichier ne supporte qu'un replica à la 
    `OAUTH_STORE_PATH=/data/oauth-store.json` et `OAUTH_DCR_ENABLED=true` pour l'ajout Claude
    automatique. Pour fermer DCR, définir à la place la paire `CLAUDE_CLIENT_ID` /
    `CLAUDE_CLIENT_SECRET`.
-5. Associer le domaine `fitness.alexisdechiara.fr` au service `fitness-mcp`.
-6. Router ce domaine vers le port conteneur `3000` ; ne pas publier directement ce port sur
-   l'hôte.
-7. Activer HTTPS et le certificat Let's Encrypt dans Dokploy.
-8. Vérifier `https://fitness.alexisdechiara.fr/healthz`.
+5. Dans l'onglet **Domains** de l'application Compose, créer le domaine
+   `fitness.alexisdechiara.fr` avec le service `fitness-mcp`, le chemin `/` et le port conteneur
+   `3000` ; ne pas publier directement ce port sur l'hôte.
+6. Activer HTTPS et le certificat Let's Encrypt dans Dokploy.
+7. **Redéployer le Compose après toute création ou modification du domaine** : Dokploy injecte les
+   labels Traefik au déploiement et les changements de domaine d'un service Compose ne sont pas
+   appliqués à chaud.
+8. Vérifier `https://fitness.alexisdechiara.fr/` puis
+   `https://fitness.alexisdechiara.fr/healthz`.
 9. Vérifier que `POST /mcp` sans jeton répond `401` avec `resource_metadata`, puis ouvrir les
    trois documents de découverte décrits ci-dessous.
 10. Confirmer que le volume `/data` reste attaché après un redeploy avant de connecter Claude.
