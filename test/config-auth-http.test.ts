@@ -76,6 +76,31 @@ describe("configuration", () => {
     expect(passwordOnly).not.toHaveProperty("yazioPassword");
   });
 
+  it("keeps the documented Yazio upstream when its overrides are absent or blank", () => {
+    const untouched = testConfig();
+    const blanked = testConfig({
+      YAZIO_BASE_URL: "",
+      YAZIO_CLIENT_ID: "  ",
+      YAZIO_CLIENT_SECRET: "",
+    });
+    const overridden = testConfig({
+      YAZIO_BASE_URL: "https://yazio.example.test/v16",
+      YAZIO_CLIENT_ID: "rotated-client",
+      YAZIO_CLIENT_SECRET: "rotated-secret",
+    });
+
+    for (const config of [untouched, blanked]) {
+      expect(config.yazioBaseUrl).toBe("https://yzapi.yazio.com/v15");
+      expect(config.yazioClientId).toMatch(/^1_/u);
+      expect(config.yazioClientSecret).not.toBe("");
+    }
+    expect(overridden).toMatchObject({
+      yazioBaseUrl: "https://yazio.example.test/v16",
+      yazioClientId: "rotated-client",
+      yazioClientSecret: "rotated-secret",
+    });
+  });
+
   it("requires a strong access token in bearer mode", () => {
     expect(() =>
       testConfig({

@@ -59,7 +59,7 @@ export function registerFitnessTools(server: McpServer, dependencies: FitnessToo
     {
       title: "Fitness daily summary",
       description:
-        "Aggregate objective Lyfta training, Yazio nutrition, water and weight data for one date. It does not provide medical advice.",
+        "Aggregate objective Lyfta training and Yazio nutrition and water data for one date. It does not provide medical advice.",
       inputSchema: { date },
       annotations: READ_ONLY,
     },
@@ -72,7 +72,7 @@ export function registerFitnessTools(server: McpServer, dependencies: FitnessToo
     {
       title: "Fitness weekly summary",
       description:
-        "Aggregate seven inclusive days starting at startDate: training frequency and volume, nutrition averages, and weight change.",
+        "Aggregate seven inclusive days starting at startDate: training frequency and volume, and nutrition averages.",
       inputSchema: { startDate: date },
       annotations: READ_ONLY,
     },
@@ -85,7 +85,7 @@ export function registerFitnessTools(server: McpServer, dependencies: FitnessToo
     {
       title: "Fitness training and nutrition summary",
       description:
-        "Aggregate objective training, nutrition, weight and rest-day indicators over an inclusive period for downstream analysis. It does not diagnose or prescribe.",
+        "Aggregate objective training, nutrition and rest-day indicators over an inclusive period for downstream analysis. It does not diagnose or prescribe.",
       inputSchema: { startDate: date, endDate: date },
       annotations: READ_ONLY,
     },

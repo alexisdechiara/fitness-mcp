@@ -1,15 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { YazioDaytime } from "../clients/yazio.js";
 import { isDateOnly } from "../domain/dates.js";
 import type { SecretRedactor } from "../security/redaction.js";
 import { runTool, unavailableService } from "./result.js";
 
-export type YazioDaytime = "breakfast" | "lunch" | "dinner" | "snack";
+export type { YazioDaytime };
 
 export interface YazioToolClient {
   getConsumedItems(date: string): Promise<unknown>;
   getDailySummary(date: string): Promise<unknown>;
-  getWeight(date?: string): Promise<unknown>;
   getExercises(date: string): Promise<unknown>;
   getWaterIntake(date: string): Promise<unknown>;
   getGoals(date?: string): Promise<unknown>;
@@ -72,18 +72,6 @@ export function registerYazioTools(server: McpServer, dependencies: YazioToolsDe
     },
     async ({ date: requestedDate }) =>
       invoke("Yazio get consumed items", (client) => client.getConsumedItems(requestedDate)),
-  );
-
-  server.registerTool(
-    "yazio_get_weight",
-    {
-      title: "Get Yazio weight",
-      description: "Get weight data, optionally scoped to one date when supported by the upstream API.",
-      inputSchema: { date: date.optional() },
-      annotations: READ_ONLY,
-    },
-    async ({ date: requestedDate }) =>
-      invoke("Yazio get weight", (client) => client.getWeight(requestedDate)),
   );
 
   server.registerTool(

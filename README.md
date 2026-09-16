@@ -1,7 +1,8 @@
 # fitness-mcp
 
-Serveur MCP distant, unique et **lecture seule**, qui agrège les entraînements Lyfta, la
-nutrition Yazio et l'évolution du poids derrière `POST /mcp`.
+Serveur MCP distant, unique et **lecture seule**, qui agrège les entraînements Lyfta et la
+nutrition Yazio derrière `POST /mcp`. Le poids corporel est hors périmètre : il est fourni par un
+autre serveur MCP.
 
 Il est écrit en Node.js/TypeScript avec le SDK officiel `@modelcontextprotocol/sdk`, utilise le
 transport Streamable HTTP stateless, écoute sur le port interne `3000` et est prêt pour un
@@ -30,7 +31,6 @@ une migration sans toucher aux intégrations métier.
 
 - `yazio_get_daily_summary`
 - `yazio_get_consumed_items`
-- `yazio_get_weight`
 - `yazio_get_exercises`
 - `yazio_get_water_intake`
 - `yazio_get_goals`
@@ -60,8 +60,11 @@ fonctions réutilisées, limites et écarts sont détaillés dans [docs/UPSTREAM
 L'architecture est décrite dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 En bref : Lyfta utilise `Authorization: Bearer LYFTA_API_KEY`. Yazio utilise une API v15 non
-officielle et rétro-ingéniérée ; le client échange username/password contre un token en mémoire.
-Aucun sous-processus STDIO n'est lancé.
+officielle et rétro-ingéniérée ; le client échange username/password contre un token gardé en
+mémoire. Le package npm `yazio` n'est plus utilisé : il envoyait la demande de token en JSON sans
+en-tête `Content-Type`, alors que l'endpoint ne lit que des paramètres
+`application/x-www-form-urlencoded`, ce qui faisait échouer toute connexion. `src/clients/yazio.ts`
+reprend donc directement les endpoints documentés. Aucun sous-processus STDIO n'est lancé.
 
 ## Configuration
 
@@ -73,6 +76,9 @@ Copier `.env.example` vers `.env` pour le développement, sans jamais commiter c
 | `LYFTA_BASE_URL` | non | `https://my.lyfta.app` | origine HTTPS de l'API Lyfta |
 | `YAZIO_USERNAME` | non | — | identifiant Yazio côté serveur, utilisé seulement avec `YAZIO_PASSWORD` |
 | `YAZIO_PASSWORD` | non | — | mot de passe Yazio côté serveur, utilisé seulement avec `YAZIO_USERNAME` |
+| `YAZIO_BASE_URL` | non | `https://yzapi.yazio.com/v15` | base de l'API Yazio, à changer si l'amont passe à une autre version |
+| `YAZIO_CLIENT_ID` | non | client public Yazio | identifiant OAuth de l'application Yazio |
+| `YAZIO_CLIENT_SECRET` | non | client public Yazio | secret OAuth de l'application Yazio |
 | `MCP_AUTH_MODE` | oui en prod | `oauth` | `oauth` recommandé, `bearer`, ou `none` hors production seulement |
 | `MCP_ACCESS_TOKEN` | en mode bearer | — | secret fixe historique de `/mcp`, 32 caractères minimum |
 | `PORT` | non | `3000` | port HTTP interne |
@@ -319,8 +325,10 @@ un token dans l'URL.
 
 ## Limites connues
 
-- L'API Yazio n'est pas officielle et peut cesser de fonctionner sans préavis.
-- La version auditée du client utilise `/v15`; l'amont discute déjà d'autres versions.
+- L'API Yazio n'est pas officielle et peut cesser de fonctionner sans préavis. `YAZIO_BASE_URL`,
+  `YAZIO_CLIENT_ID` et `YAZIO_CLIENT_SECRET` permettent de réagir sans changement de code.
+- Le client utilise `/v15`; l'amont discute déjà d'autres versions.
+- Le poids corporel n'est pas exposé : ni outil dédié, ni champ dans les agrégations.
 - Yazio ne fournit pas de véritable endpoint de période : une synthèse appelle un jour à la fois.
 - Lyfta ne documente pas de filtre de date pour les workouts ; le serveur pagine puis filtre
   localement, avec une borne explicite.
@@ -328,7 +336,7 @@ un token dans l'URL.
   des séries est reconstruit depuis les workouts disponibles.
 - Les écritures Yazio/Lyfta sont volontairement absentes.
 - Le serveur ne délivre aucun avis médical.
-- `yazio@1.1.3` ne déclarait pas de licence lors de l'audit ; voir
+- Les sources amont réutilisées sont listées dans
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Sécurité

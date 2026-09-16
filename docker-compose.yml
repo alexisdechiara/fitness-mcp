@@ -10,6 +10,9 @@ services:
       LYFTA_BASE_URL: ${LYFTA_BASE_URL:-https://my.lyfta.app}
       YAZIO_USERNAME: ${YAZIO_USERNAME:-}
       YAZIO_PASSWORD: ${YAZIO_PASSWORD:-}
+      YAZIO_BASE_URL: ${YAZIO_BASE_URL:-}
+      YAZIO_CLIENT_ID: ${YAZIO_CLIENT_ID:-}
+      YAZIO_CLIENT_SECRET: ${YAZIO_CLIENT_SECRET:-}
       MCP_AUTH_MODE: ${MCP_AUTH_MODE:-oauth}
       MCP_ACCESS_TOKEN: ${MCP_ACCESS_TOKEN:-}
       OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://fitness.alexisdechiara.fr}

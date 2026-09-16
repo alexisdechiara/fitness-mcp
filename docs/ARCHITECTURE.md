@@ -4,7 +4,7 @@
 fitness-mcp/
 ├── src/
 │   ├── auth/                 # garde MCP, indépendante des credentials amont
-│   ├── clients/              # LyftaClient et façade Yazio
+│   ├── clients/              # LyftaClient et YazioClient, écrits ici sans SDK amont
 │   ├── config/               # validation stricte de l'environnement
 │   ├── domain/               # types, dates, muscles, normalisation
 │   ├── oauth/                # Authorization Server, pages HTML et store opaque persistant
@@ -111,7 +111,8 @@ Les agrégations travaillent sur des dates civiles `YYYY-MM-DD`, sans conversion
 fuseau de la machine. Elles bornent la longueur d'une période et la quantité de workouts chargée.
 Les calories/macros viennent de la somme des quatre repas du résumé Yazio. Les volumes Lyfta sont
 calculés avec `poids × répétitions` pour les séries terminées ; la valeur officielle du workout
-sert de repli.
+sert de repli. Le poids corporel est hors périmètre : il relève d'un autre serveur MCP, donc
+aucune agrégation ne le lit ni ne le renvoie.
 
 Les séries directes/indirectes utilisent exclusivement les tableaux officiels
 `Target_muscles_id` et `Synergist_muscles_id`. Un volume attribué à plusieurs muscles est une
