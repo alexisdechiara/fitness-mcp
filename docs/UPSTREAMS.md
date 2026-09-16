@@ -1,6 +1,7 @@
 # Audit des sources amont
 
-Audit réalisé le 11 août 2026 avant l'implémentation de `fitness-mcp`.
+Audit réalisé le 11 août 2026 avant l'implémentation de `fitness-mcp`, et mis à jour le
+16 septembre 2026 lors du remplacement du client Yazio.
 
 ## Lyfta
 
@@ -48,33 +49,55 @@ Sources vérifiées :
   npm `0.0.14` au commit `dd8d115a00f9acf7f2f91d7f0419d04ec1553863`, licence MIT ;
 - package npm [`yazio`](https://www.npmjs.com/package/yazio) `1.1.3`, dépôt
   [`juriadams/yazio`](https://github.com/juriadams/yazio), commit
-  `93d82e47c202eee933a5bc9cdd91fabd004cade0` pour la version publiée auditée.
+  `93d82e47c202eee933a5bc9cdd91fabd004cade0` pour la version publiée auditée ;
+- [`saganos/yazio_public_api`](https://github.com/saganos/yazio_public_api), commit
+  `9902893cf8b0329f544b176e4f4885e1e5930ee2`, licence MIT : description publique de l'API v15,
+  `swagger.json` et exemples de connexion.
 
 `yazio-mcp` est un serveur STDIO. Il ne contient pas son propre client HTTP : il instancie
-directement `new Yazio({ credentials: { username, password } })`. `fitness-mcp` réutilise donc
-la même bibliothèque au lieu de lancer ce serveur comme sous-processus.
+directement `new Yazio({ credentials: { username, password } })`. `fitness-mcp` n'a jamais lancé
+ce serveur comme sous-processus.
 
-Authentification réelle de la bibliothèque : échange username/password contre un jeton sur
-`POST https://yzapi.yazio.com/v15/oauth/token`, puis cache du jeton en mémoire jusqu'à son
-expiration. Les requêtes de données envoient ce jeton en Bearer. Aucun jeton Yazio n'est
-renvoyé par les outils de ce projet.
+### Pourquoi le package `yazio` a été remplacé
+
+Le package npm n'est plus publié depuis avril 2024. Sa fonction d'authentification appelle
+`POST /v15/oauth/token` avec `JSON.stringify(...)` comme corps et **sans en-tête
+`Content-Type`** : `fetch` envoie donc `text/plain`. L'endpoint Yazio ne lit que des paramètres
+`application/x-www-form-urlencoded` — c'est explicite dans `saganos/yazio_public_api`, dont
+`examples/login.js` poste un `URLSearchParams`. La requête arrive vide côté serveur et chaque
+connexion échoue, ce qui rend l'intégration entière inutilisable.
+
+`src/clients/yazio.ts` est donc un client de première main, écrit dans le style de
+`LyftaClient` et sans dépendance npm supplémentaire :
+
+- échange form-encodé sur `POST /v15/oauth/token` avec les identifiants publics de l'application
+  Yazio (`client_id` `1_4hiy…`, `client_secret` `6rok…`), surchargeables par `YAZIO_CLIENT_ID` et
+  `YAZIO_CLIENT_SECRET` si Yazio les fait tourner ;
+- jeton gardé en mémoire, renouvelé via `grant_type=refresh_token` avec repli sur le mot de passe,
+  et **une seule connexion partagée** entre les lectures concurrentes d'une période ;
+- rejeu unique d'une lecture après un `401`, puis erreurs normalisées portant le statut HTTP et le
+  code d'erreur amont, ce qui rend la prochaine panne diagnosticable ;
+- `baseUrl`, `fetchImpl` et `timeoutMs` injectables, donc testables sans réseau.
+
+Aucun jeton Yazio n'est renvoyé par les outils de ce projet.
 
 Fonctions de lecture confirmées :
 
-| Fonction de `yazio` | Endpoint utilisé |
+| Méthode de `YazioClient` | Endpoint utilisé |
 | --- | --- |
-| `user.get()` | `GET /user` |
-| `user.getConsumedItems({ date })` | `GET /user/consumed-items?date=...` |
-| `user.getDailySummary({ date })` | `GET /user/widgets/daily-summary?date=...` |
-| `user.getWeight({ date? })` | `GET /user/bodyvalues/weight/last?date=...` |
-| `user.getExercises({ date? })` | `GET /user/exercises?date=...` |
-| `user.getWaterIntake({ date? })` | `GET /user/water-intake?date=...` |
-| `user.getGoals({ date? })` | `GET /user/goals/unmodified?date=...` |
-| `user.getSettings()` | `GET /user/settings` |
-| `user.getDietaryPreferences()` | `GET /user/dietary-preferences` |
-| `user.getSuggestedProducts(...)` | `GET /user/products/suggested?...` |
-| `products.search(...)` | `GET /products/search?...` |
-| `products.get(id)` | `GET /products/{id}` |
+| `getConsumedItems(date)` | `GET /user/consumed-items?date=...` |
+| `getDailySummary(date)` | `GET /user/widgets/daily-summary?date=...` |
+| `getExercises(date)` | `GET /user/exercises?date=...` |
+| `getWaterIntake(date)` | `GET /user/water-intake?date=...` |
+| `getGoals(date?)` | `GET /user/goals/unmodified?date=...` |
+| `getSettings()` | `GET /user/settings` |
+| `getDietaryPreferences()` | `GET /user/dietary-preferences` |
+| `getSuggestedProducts(date, daytime)` | `GET /user/products/suggested?...` |
+| `searchProducts(...)` | `GET /products/search?...` |
+| `getProduct(id)` | `GET /products/{id}` |
+
+`GET /user/bodyvalues/weight/last` et `GET /user` ne sont pas appelés : le poids corporel est
+fourni par un autre serveur MCP et n'a donc plus ni outil, ni champ d'agrégation ici.
 
 Les trois écritures présentes dans `yazio-mcp` (ajout/suppression d'aliment et ajout d'eau)
 ne sont pas exposées. L'ajout d'eau y est notamment un monkey-patch sur un endpoint absent de
@@ -82,11 +105,8 @@ la bibliothèque.
 
 Limites : Yazio ne publie aucune API officielle ; ces endpoints sont rétro-ingéniérés et
 peuvent changer sans préavis. Les lectures par période nécessitent un appel par date. Le client
-amont ne propose ni timeout ni injection de `fetch` ; `fitness-mcp` lui applique donc une
-politique réseau globale bornée, sans journaliser URL sensible, en-têtes, identifiants ou jetons.
-Le package `yazio` ne déclare pas de licence dans le dépôt audité ; il reste une dépendance npm
-non copiée dans les sources de ce projet. Ce point doit être revérifié avant une distribution
-publique.
+local applique son propre timeout, en plus de la politique réseau globale bornée, sans journaliser
+URL sensible, en-têtes, identifiants ou jetons.
 
 ## Décisions
 

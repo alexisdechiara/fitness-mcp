@@ -28,7 +28,6 @@ const EXPECTED_TOOLS = [
   "yazio_get_settings",
   "yazio_get_suggested_products",
   "yazio_get_water_intake",
-  "yazio_get_weight",
   "yazio_search_products",
 ] as const;
 
@@ -62,7 +61,6 @@ function failingYazioStub(): YazioToolClient {
   return {
     getConsumedItems: unavailable,
     getDailySummary: unavailable,
-    getWeight: unavailable,
     getExercises: unavailable,
     getWaterIntake: unavailable,
     getGoals: unavailable,
@@ -75,7 +73,7 @@ function failingYazioStub(): YazioToolClient {
 }
 
 describe("MCP tool catalogue", () => {
-  it("exposes the exact 22 read-only tools over a real in-memory MCP connection", async () => {
+  it("exposes the exact 21 read-only tools over a real in-memory MCP connection", async () => {
     const server = createMcpServer({
       fitness: fitnessStub(),
       redactor: new SecretRedactor([]),
@@ -89,9 +87,9 @@ describe("MCP tool catalogue", () => {
 
       const { tools } = await client.listTools();
 
-      expect(tools).toHaveLength(22);
+      expect(tools).toHaveLength(21);
       expect(tools.map(({ name }) => name).sort()).toEqual([...EXPECTED_TOOLS]);
-      expect(new Set(tools.map(({ name }) => name)).size).toBe(22);
+      expect(new Set(tools.map(({ name }) => name)).size).toBe(21);
       for (const tool of tools) {
         expect(tool.inputSchema.type).toBe("object");
         expect(tool.description).toEqual(expect.any(String));

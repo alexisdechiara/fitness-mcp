@@ -104,18 +104,13 @@ function lyfta(
 function yazio(): YazioFitnessClient {
   return {
     getDailySummary: vi.fn(async (date: string) => dailySummary(date)),
-    getWeight: vi.fn(async (date?: string) => ({
-      id: `weight-${date ?? "latest"}`,
-      date: `${date ?? "2026-08-01"} 08:00:00`,
-      value: date === "2026-08-07" ? 79.5 : 80,
-    })),
     getWaterIntake: vi.fn(async () => ({ water_intake: 2_200 })),
     getGoals: vi.fn(async () => ({ "energy.energy": 2_500 })),
   };
 }
 
 describe("FitnessService", () => {
-  it("builds a structured daily training, nutrition, hydration and weight summary", async () => {
+  it("builds a structured daily training, nutrition and hydration summary", async () => {
     const service = new FitnessService({
       lyfta: lyfta([workout("w1", "2026-08-01", 100), workout("w2", "2026-08-02", 105)]),
       yazio: yazio(),
@@ -125,8 +120,6 @@ describe("FitnessService", () => {
 
     expect(result).toMatchObject({
       date: "2026-08-01",
-      weight: 80,
-      weightRecordedAt: "2026-08-01",
       nutrition: {
         caloriesConsumed: 1_900,
         calorieGoal: 2_500,
@@ -145,6 +138,9 @@ describe("FitnessService", () => {
       dataQuality: { status: "complete", truncated: false },
     });
     expect(Array.isArray(result)).toBe(false);
+    // Body weight is owned by another MCP; only training loads remain.
+    expect(Object.keys(result)).not.toContain("weight");
+    expect(Object.keys(result)).not.toContain("weightRecordedAt");
     expect(result.training.exercises).toEqual([
       expect.objectContaining({ exerciseId: "bench", completedSets: 2, volume: 1_220 }),
     ]);
@@ -152,7 +148,6 @@ describe("FitnessService", () => {
 
   it("reports malformed optional Yazio payloads as partial data", async () => {
     const yazioClient = yazio();
-    vi.mocked(yazioClient.getWeight).mockResolvedValue({ unexpected: true });
     vi.mocked(yazioClient.getWaterIntake).mockResolvedValue({ unexpected: true });
     vi.mocked(yazioClient.getGoals).mockResolvedValue({ unexpected: true });
     const service = new FitnessService({
@@ -167,7 +162,6 @@ describe("FitnessService", () => {
       expect.arrayContaining([
         "Yazio goals for 2026-08-01 had an unrecognized shape.",
         "Yazio water intake for 2026-08-01 had an unrecognized shape.",
-        "Yazio weight for 2026-08-01 had an unrecognized shape.",
       ]),
     );
   });
@@ -203,9 +197,6 @@ describe("FitnessService", () => {
     const yazioClient: YazioFitnessClient = {
       getDailySummary: vi.fn(async (date: string) =>
         observed(dailySummary(date), date === "2026-08-02"),
-      ),
-      getWeight: vi.fn(async (date?: string) =>
-        observed({ date, value: 80 }),
       ),
       getWaterIntake: vi.fn(async () => observed({ water_intake: 2_000 })),
       getGoals: vi.fn(async () => observed({ "energy.energy": 2_500 })),
@@ -259,11 +250,7 @@ describe("FitnessService", () => {
       daysWithData: 7,
       averages: { caloriesConsumed: 1_900, proteinGrams: 150 },
     });
-    expect(result.weight).toMatchObject({
-      start: { value: 80 },
-      end: { value: 79.5 },
-      change: -0.5,
-    });
+    expect(result).not.toHaveProperty("weight");
     expect(yazioClient.getDailySummary).toHaveBeenCalledTimes(7);
   });
 

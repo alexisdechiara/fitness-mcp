@@ -14,7 +14,7 @@ import {
   type NormalizedWorkoutExercise,
   type UnknownRecord,
 } from "../domain/normalize.js";
-import { addDays, enumerateDates, isoWeekKey, upstreamDate } from "../domain/dates.js";
+import { addDays, enumerateDates, isoWeekKey } from "../domain/dates.js";
 import { muscleLabel } from "../domain/muscles.js";
 import { createConcurrencyLimiter, type ConcurrencyLimiter } from "./concurrency.js";
 
@@ -25,7 +25,7 @@ export type LyftaFitnessClient = Pick<
 
 export type YazioFitnessClient = Pick<
   YazioClient,
-  "getDailySummary" | "getWeight" | "getWaterIntake" | "getGoals"
+  "getDailySummary" | "getWaterIntake" | "getGoals"
 >;
 
 export interface FitnessServiceOptions {
@@ -127,8 +127,6 @@ export interface DailyTraining {
 
 export interface FitnessDailySummary {
   date: string;
-  weight: number | null;
-  weightRecordedAt: string | null;
   nutrition: DailyNutrition;
   units: NutritionUnits;
   training: DailyTraining;
@@ -222,19 +220,6 @@ export interface PeriodNutrition {
   units: NutritionUnits;
 }
 
-export interface WeightReading {
-  requestedDate: string;
-  value: number;
-  recordedAt: string | null;
-}
-
-export interface PeriodWeight {
-  start: WeightReading | null;
-  end: WeightReading | null;
-  change: number | null;
-  readings: WeightReading[];
-}
-
 export interface TrainingNutritionComparison {
   trainingDaysWithNutrition: number;
   restDaysWithNutrition: number;
@@ -250,7 +235,6 @@ export interface FitnessTrainingNutritionSummary {
   };
   training: PeriodTraining;
   nutrition: PeriodNutrition;
-  weight: PeriodWeight;
   trainingNutritionComparison: TrainingNutritionComparison;
   dataQuality: DataQuality;
   methodology: FitnessMethodology;
@@ -394,15 +378,9 @@ interface WorkoutBatch {
   truncated: boolean;
 }
 
-interface CapturedWeight {
-  value: number;
-  recordedAt: string | null;
-}
-
 interface NormalizedNutrition {
   nutrition: DailyNutrition;
   units: NutritionUnits;
-  fallbackWeight: number | null;
 }
 
 interface PeriodContext {
@@ -411,7 +389,6 @@ interface PeriodContext {
   metadata: ExerciseMetadata[];
   nutritionDays: NutritionDay[];
   nutritionUnits: NutritionUnits;
-  weights: Array<WeightReading | null>;
   tracker: QualityTracker;
 }
 
@@ -493,7 +470,6 @@ function normalizeNutrition(value: unknown): NormalizedNutrition | null {
   const meals = record(source.meals);
   const goals = record(source.goals);
   const units = record(source.units);
-  const user = record(source.user);
   const nutrition: DailyNutrition = {
     caloriesConsumed: sumMealNutrient(meals, "energy.energy"),
     calorieGoal: nullableNumber(finiteNumber(goals?.["energy.energy"])),
@@ -511,7 +487,6 @@ function normalizeNutrition(value: unknown): NormalizedNutrition | null {
       energy: stringValue(units?.unit_energy) ?? null,
       mass: stringValue(units?.unit_mass) ?? null,
     },
-    fallbackWeight: finiteNumber(user?.current_weight) ?? null,
   };
 }
 
@@ -524,17 +499,6 @@ function normalizeGoals(value: unknown): Pick<DailyNutrition, "calorieGoal"> | n
 
 function normalizeWater(value: unknown): number | null {
   return nullableNumber(finiteNumber(nestedRecord(value)?.water_intake));
-}
-
-function normalizeWeight(value: unknown): CapturedWeight | null {
-  if (value === null) return null;
-  const source = nestedRecord(value);
-  const weight = finiteNumber(source?.value);
-  if (weight === undefined) return null;
-  return {
-    value: weight,
-    recordedAt: upstreamDate(source?.date) ?? null,
-  };
 }
 
 function publicSet(set: NormalizedSet): SetResult {
@@ -902,13 +866,6 @@ export class FitnessService {
       limiter,
       () => this.yazio?.getDailySummary(date),
     );
-    const weightPromise = this.capture(
-      "yazio",
-      `weight for ${date}`,
-      tracker,
-      limiter,
-      () => this.yazio?.getWeight(date),
-    );
     const waterPromise = this.capture(
       "yazio",
       `water intake for ${date}`,
@@ -924,10 +881,9 @@ export class FitnessService {
       () => this.yazio?.getGoals(date),
     );
 
-    const [workoutBatch, rawSummary, rawWeight, rawWater, rawGoals] = await Promise.all([
+    const [workoutBatch, rawSummary, rawWater, rawGoals] = await Promise.all([
       workoutsPromise,
       summaryPromise,
-      weightPromise,
       waterPromise,
       goalsPromise,
     ]);
@@ -947,20 +903,9 @@ export class FitnessService {
       tracker.warning(`Yazio water intake for ${date} had an unrecognized shape.`);
     }
     if (water !== null) nutrition.waterMilliliters = water;
-    const capturedWeight = rawWeight === undefined ? null : normalizeWeight(rawWeight);
-    if (
-      rawWeight !== undefined &&
-      rawWeight !== null &&
-      !capturedWeight &&
-      nestedRecord(rawWeight)?.value !== null
-    ) {
-      tracker.warning(`Yazio weight for ${date} had an unrecognized shape.`);
-    }
 
     return {
       date,
-      weight: capturedWeight?.value ?? normalizedSummary?.fallbackWeight ?? null,
-      weightRecordedAt: capturedWeight?.recordedAt ?? null,
       nutrition,
       units: normalizedSummary?.units ?? { energy: null, mass: null },
       training: aggregateDailyTraining(workouts),
@@ -1329,36 +1274,17 @@ export class FitnessService {
       dates.map(async (date): Promise<{
         nutrition: NutritionDay;
         units: NutritionUnits | null;
-        weight: WeightReading | null;
       }> => {
-        const [rawSummary, rawWeight] = await Promise.all([
-          this.capture(
-            "yazio",
-            `daily summary for ${date}`,
-            tracker,
-            limiter,
-            () => this.yazio?.getDailySummary(date),
-          ),
-          this.capture(
-            "yazio",
-            `weight for ${date}`,
-            tracker,
-            limiter,
-            () => this.yazio?.getWeight(date),
-          ),
-        ]);
+        const rawSummary = await this.capture(
+          "yazio",
+          `daily summary for ${date}`,
+          tracker,
+          limiter,
+          () => this.yazio?.getDailySummary(date),
+        );
         const summary = rawSummary === undefined ? null : normalizeNutrition(rawSummary);
         if (rawSummary !== undefined && !summary) {
           tracker.warning(`Yazio daily summary for ${date} had an unrecognized shape.`);
-        }
-        const normalizedWeight = rawWeight === undefined ? null : normalizeWeight(rawWeight);
-        if (
-          rawWeight !== undefined &&
-          rawWeight !== null &&
-          !normalizedWeight &&
-          nestedRecord(rawWeight)?.value !== null
-        ) {
-          tracker.warning(`Yazio weight for ${date} had an unrecognized shape.`);
         }
         return {
           nutrition: {
@@ -1367,11 +1293,6 @@ export class FitnessService {
             ...(summary?.nutrition ?? emptyNutrition()),
           },
           units: summary?.units ?? null,
-          weight: normalizedWeight
-            ? { requestedDate: date, ...normalizedWeight }
-            : summary?.fallbackWeight !== null && summary?.fallbackWeight !== undefined
-              ? { requestedDate: date, value: summary.fallbackWeight, recordedAt: null }
-              : null,
         };
       }),
     );
@@ -1391,7 +1312,6 @@ export class FitnessService {
           energy: null,
           mass: null,
         },
-      weights: yazioDays.map((day) => day.weight),
       tracker,
     };
   }
@@ -1416,9 +1336,6 @@ export class FitnessService {
     }
     const performance = allPerformance(context.workouts);
     const volumes = context.workouts.map(calculatedWorkoutVolume);
-    const readings = context.weights.filter((reading): reading is WeightReading => reading !== null);
-    const start = context.weights[0] ?? null;
-    const end = context.weights.at(-1) ?? null;
     const trainingNutrition = context.nutritionDays.filter((day) => trainingDaySet.has(day.date));
     const restNutrition = context.nutritionDays.filter((day) => !trainingDaySet.has(day.date));
 
@@ -1448,12 +1365,6 @@ export class FitnessService {
         averages: nutritionAverages(context.nutritionDays),
         daily: context.nutritionDays,
         units: context.nutritionUnits,
-      },
-      weight: {
-        start,
-        end,
-        change: start && end ? round(end.value - start.value, 3) : null,
-        readings,
       },
       trainingNutritionComparison: {
         trainingDaysWithNutrition: trainingNutrition.filter((day) => day.available).length,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { YAZIO_BASE_URL, YAZIO_CLIENT_ID, YAZIO_CLIENT_SECRET } from "../clients/yazio.js";
 
 const optionalString = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -9,6 +10,13 @@ const optionalUrl = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
   z.string().url().optional(),
 );
+
+/** An unset *or blank* variable falls back, so a copied `.env.example` still starts. */
+const withDefault = <Schema extends z.ZodTypeAny>(schema: Schema, fallback: string) =>
+  z.preprocess(
+    (value) => (typeof value !== "string" || value.trim() === "" ? fallback : value),
+    schema,
+  );
 
 const integerFromEnvironment = (fallback: number, min: number, max: number) =>
   z.preprocess(
@@ -36,6 +44,9 @@ const EnvironmentSchema = z
     LYFTA_BASE_URL: z.string().url().default("https://my.lyfta.app"),
     YAZIO_USERNAME: optionalString,
     YAZIO_PASSWORD: optionalString,
+    YAZIO_BASE_URL: withDefault(z.string().url(), YAZIO_BASE_URL),
+    YAZIO_CLIENT_ID: withDefault(z.string().trim().min(1), YAZIO_CLIENT_ID),
+    YAZIO_CLIENT_SECRET: withDefault(z.string().trim().min(1), YAZIO_CLIENT_SECRET),
     MCP_AUTH_MODE: z.enum(["oauth", "bearer", "none"]).default("oauth"),
     MCP_ACCESS_TOKEN: optionalString,
     MCP_ALLOWED_HOSTS: z.string().default("fitness.alexisdechiara.fr,localhost,127.0.0.1"),
@@ -215,6 +226,9 @@ export interface AppConfig {
   lyftaBaseUrl: string;
   yazioUsername?: string;
   yazioPassword?: string;
+  yazioBaseUrl: string;
+  yazioClientId: string;
+  yazioClientSecret: string;
   mcpAuthMode: "oauth" | "bearer" | "none";
   mcpAccessToken?: string;
   allowedHosts: string[];
@@ -263,6 +277,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     ...(env.LYFTA_API_KEY ? { lyftaApiKey: env.LYFTA_API_KEY } : {}),
     lyftaBaseUrl: env.LYFTA_BASE_URL,
     ...(yazioConfigured ? { yazioUsername: env.YAZIO_USERNAME, yazioPassword: env.YAZIO_PASSWORD } : {}),
+    yazioBaseUrl: env.YAZIO_BASE_URL,
+    yazioClientId: env.YAZIO_CLIENT_ID,
+    yazioClientSecret: env.YAZIO_CLIENT_SECRET,
     mcpAuthMode: env.MCP_AUTH_MODE,
     ...(env.MCP_ACCESS_TOKEN ? { mcpAccessToken: env.MCP_ACCESS_TOKEN } : {}),
     allowedHosts: csv(env.MCP_ALLOWED_HOSTS),

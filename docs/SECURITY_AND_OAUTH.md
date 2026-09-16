@@ -453,8 +453,9 @@ paramètre de query.
   ni cookies.
 - Le healthcheck indique uniquement si Lyfta et Yazio sont configurés et ne valide jamais leurs
   credentials.
-- L'API Yazio reste non officielle ; clarifier également la licence de `yazio` avant toute
-  redistribution publique ou commerciale.
+- L'API Yazio reste non officielle et peut changer sans préavis. `YAZIO_BASE_URL`,
+  `YAZIO_CLIENT_ID` et `YAZIO_CLIENT_SECRET` permettent d'y répondre sans redéploiement de code ;
+  `YAZIO_CLIENT_SECRET` est rédigé des logs comme les autres secrets.
 
 ## Références officielles
 

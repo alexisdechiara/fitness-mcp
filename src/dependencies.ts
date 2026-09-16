@@ -33,7 +33,12 @@ export function createDependencies(config: AppConfig): RuntimeDependencies {
 
   const yazio =
     config.yazioUsername && config.yazioPassword
-      ? new YazioClient(config.yazioUsername, config.yazioPassword)
+      ? new YazioClient(config.yazioUsername, config.yazioPassword, {
+          baseUrl: config.yazioBaseUrl,
+          clientId: config.yazioClientId,
+          clientSecret: config.yazioClientSecret,
+          timeoutMs: config.upstreamTimeoutMs,
+        })
       : undefined;
 
   const fitness = new FitnessService({

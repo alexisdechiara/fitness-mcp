@@ -43,6 +43,7 @@ export function createRedactor(config: AppConfig): SecretRedactor {
     config.lyftaApiKey,
     config.yazioUsername,
     config.yazioPassword,
+    config.yazioClientSecret,
     config.mcpAccessToken,
     config.fitnessAdminUsername,
     config.fitnessAdminPassword,

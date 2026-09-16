@@ -22,12 +22,21 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## yazio_public_api
+
+`src/clients/yazio.ts` is written from the endpoint and authentication description published in
+[`saganos/yazio_public_api`](https://github.com/saganos/yazio_public_api), commit
+`9902893cf8b0329f544b176e4f4885e1e5930ee2`. No source is copied: only the documented paths, the
+public OAuth client credentials of the Yazio application and the form encoding of the token
+request are reused.
+
+MIT, Copyright (c) 2020 saganos.
+
 ## yazio and yazio-mcp
 
-This project depends on the npm package `yazio@1.1.3`, the same client used by
-`fliptheweb/yazio-mcp`. No source from `yazio` is copied here. At the audit date, its package
-metadata and repository did not declare a licence. Clarify redistribution rights with its
-author before distributing a public or commercial image.
+The npm package `yazio@1.1.3` was the Yazio client until its broken token request was replaced by
+the first-party client above; it is no longer a dependency. The licence question its missing
+package metadata raised therefore no longer applies to this project.
 
-`fliptheweb/yazio-mcp` itself is MIT, Copyright (c) 2024 Artur Kornakov. Its code is not copied
-or bundled directly; its verified tool contracts informed this integration.
+`fliptheweb/yazio-mcp` is MIT, Copyright (c) 2024 Artur Kornakov. Its code is not copied or
+bundled; its verified tool contracts informed this integration.
